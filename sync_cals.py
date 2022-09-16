@@ -55,8 +55,23 @@ if __name__ == "__main__":
     
     profiles = CalendarProfile.objects.all()
 
-    combine_calId_dict = {}  # dictionary to hold owner ID and each their 
-    
+    ''' *********************************************************************************************************
+    ##    Start loop for user data, gathering their source calendars and searching for new or updates  **********
+    Summary:
+    from the user profile, iterates through shared calendar IDs in order to pull from their source calendar(s).
+    by grab_events function(service, and calendarID)
+    Also prepares DB copy by making a simple dictionary with cal_ids to easily verify if the event exists yet.
+
+    comparing event IDs against the dictionary, it can tell if:
+    there IS a matching id, check the updated date. IF dates DON'T match, then do updates.
+    there IS NOT a match, then this one is new and needs to be inserted.
+
+    for items checked from DB, and there is not a matching calendar ID that was pulled from the original shared calendar,
+    then it is candidate for delete.
+    '''
+
+    combine_calId_dict = {}  # dictionary to hold owner ID and each of their combined calendar; for managing their shared cal.
+
     all_inserted_events = []
     
     ev_count = 0
@@ -65,6 +80,8 @@ if __name__ == "__main__":
     
     events_to_update = []  # just the ID for which will get updated to EVERY user if it lands here.
     events_to_insert = []  # HERE to insert them, by cal-id
+
+    check_back_cal_ids = []  # for cleaning up; pile all of them up and see whats NOT a match in the db; if in DB but not here, delete it.
 
     for user in profiles:
         # each shared calendar ID
@@ -86,6 +103,8 @@ if __name__ == "__main__":
                 # ev_count += len(calevents)
                 # format them ready for db
                 for event in calevents:
+                    check_back_cal_ids.append(event['id'])   #  ADDED Immediately!
+
                     ev_count += 1
                     print(f"is there 'cal_id' field? {event.keys()}")
                     if event['id'] in db_event_updated_dates.keys():
@@ -112,13 +131,29 @@ if __name__ == "__main__":
                         print(f"to db? {entered}")
                 # insert to db
                 print(f" sum of all events so far: {ev_count}")
-    
+                calevents = []  # resets the list, so it doesn't re-run against itself if next ID is empty
+
+    #  Now double-check for anything to delete...
+    for delete_me in db_events:
+        if delete_me.cal_id not in check_back_cal_ids:
+            print(f"THIS ONE candidate for delete.. {delete_me.summary} date: {delete_me.start}")
+            # do delete here..
+    # holdup = input('waiting here...')
+
+    ''' *************************************************************************************************************
+    This section summary: 
+    after the previous step of checking source data and bringing the database up to date, now run through it again
+    and see what users need changes to their COMBINED calendars.
+
+    * first pulls the DB again to operate on all new data.
+    '''
+
     # refresh db_Events and start working them into user shared cals
     db_events = AllEvents.objects.all()
     # loop db events, need to check either:
     # A: event_ID from user is on the event yet, and send 'patch' if it does.
 
-    all_to_update = events_to_insert + events_to_update
+    all_to_update = events_to_insert + events_to_update  # combined list of IDs found to be either inserted or updated. ALL users source IDs
 
     for item in db_events:
         # remove whos the owner from the combine_calID_dict so it doesn't send to them.
@@ -126,16 +161,17 @@ if __name__ == "__main__":
         non_owners = {k: v for k, v in combine_calId_dict.items() if k != item.owner.id}
         print(f"these are the users who will get the pushed event: {non_owners.keys()}")
         try:
-            event_ids = ast.literal_eval(item.other_ids)  # can this work??? Would be best if it becomes a dict.. then it can grow if we add people
+            combined_ev_ids = ast.literal_eval(item.other_ids)  # THIS WORKS!! Yay
         except SyntaxError:
-            print('eventIds empty')
-            event_ids = {}
+            print(f'eventIds empty {item.other_ids}')
+            combined_ev_ids = {}
         except ValueError:
             print(f'eventIds None? {item.other_ids}')
-            event_ids = {}
+            combined_ev_ids = {}
 
-        if event_ids:
-            for k, evid in event_ids.items():
+        # checking this event, IF its been pushed already then compare to all_to_update list:
+        if combined_ev_ids:
+            for k, evid in combined_ev_ids.items():
                 if item.cal_id not in all_to_update:
                     print('does not need update.')
                     continue
@@ -143,26 +179,13 @@ if __name__ == "__main__":
                 print(f'updates went successfully. {rcp["id"]}')
         else:
             # B: if not, do INSERT event if NOT the owner.
-            event_ids = {} 
+            combined_ev_ids = {} 
             for k, calid in non_owners.items():
                 if item.cal_id not in all_to_update:
                     print('does not need insert.')
                     continue
                 rcpt = insert_event(service, calid, item.__dict__)
-                event_ids[k] = rcpt['id']
-            item.other_ids = event_ids
+                combined_ev_ids[k] = rcpt['id']
+            item.other_ids = combined_ev_ids
             item.save()
 
-        # C: delete (maybe in front) if event goes away?
-    
-    
-    
-    test_event = {'summary': 'test item',
-                  'description': 'fill in desc.',
-                  'start': {'dateTime': '2022-10-08T11:30:00-06:00', 'timeZone': 'America/Denver'},
-                  'end': {'dateTime': '2022-10-08T12:30:00-06:00', 'timeZone': 'America/Denver'},
-                  'updated': '2022-09-01T02:21:53.913Z',
-    }
-                  
-    
-    # 
