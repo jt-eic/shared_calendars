@@ -30,10 +30,6 @@ Dump into the db, saving the initial cal_id from the owner who generated it.
 
 '''
 
-# use for now but put in from DB later:
-# calendarId = "6p6ak3td65phucrouhjk65r6jo@group.calendar.google.com"   # from DB and make a 
-# personal_ID = "jasun.t@gmail.com"
-
 def event_to_db(ev):
     '''summary, description, start, end, location, id (owners original)'''
     # ev = shape_event(ev)

@@ -6,14 +6,14 @@ class AllEvents(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
 
     cal_id = models.CharField(max_length=150)
-    start = models.CharField(max_length=60)
-    end = models.CharField(max_length=60)
+    start = models.CharField(max_length=90)
+    end = models.CharField(max_length=90)
     summary =  models.CharField(max_length=100)
     description = models.TextField()
     location =  models.CharField(max_length=100)
     updated = models.CharField(max_length=50, null=True, blank=True)
     # need a cell to hold other users cal_id data? try as dict?
-    other_ids = models.TextField(null=True, blank=True, help_text="not used here, unless json works. use single fields.")
+    other_ids = models.TextField(null=True, blank=True, help_text="Now holds string for JSON data on import.")
     
     # share with all users besides the original owner
     usershare1 = models.CharField(max_length=250, null=True, blank=True)
